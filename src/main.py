@@ -1,6 +1,15 @@
 from fastapi import FastAPI,Body,HTTPException
+'''
+Body->http 요청의 본문(body)에서 값을 빼올 때 사용
+HttpException->오류 상태를 응답할 때 사용
+'''
 from pydantic import BaseModel
+'''
+BaseModel을 상속해서 데이터 구조(모양)를 정의하면,
+fastapi가 자동으로 검사와 변환 수행
+'''
 app=FastAPI()
+#FastAPI()를 실행해서 app이라는 웹 서버 프로그램 인스턴스 생성
 
 '''
 서버가 살아 있는지 테스트
@@ -30,9 +39,10 @@ todo_data={
 
 #전체 todo 리스트 가져오기
 @app.get("/todos",status_code=200)
-def get_todos_handler(order:str | None=None):#쿼리 파라미터가 필수는 아님!!,
+def get_todos_handler(order:str | None=None):
+    #쿼리 파라미터가 필수는 아님!!, 쿼리 파라미터는 없을 수도 있어서 None 이 기본값
     ret=list(todo_data.values())
-    if order and order=="DESC":#order 가 있고 그 값이 DESC 라면
+    if order and order=="DESC":#order 가 존재하고 그 값이 DESC 라면
         return ret[::-1]
     return ret
 

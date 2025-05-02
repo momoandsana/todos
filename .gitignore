@@ -1,29 +1,22 @@
+# macOS
+.DS_Store
+
+# PyCharm
+.idea/
+
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-.Python
-*.env
-
-# Virtual environments
+*.egg-info/
+*.dist-info/
 venv/
+.venv/
 env/
-.env/
+bin/
+lib/
+include/
 
-# IDEs
-.idea/
+# 기타
+.mypy_cache/
+.pytest_cache/
 .vscode/
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# Databases
-*.sqlite3
-
-# Other
-*.pid

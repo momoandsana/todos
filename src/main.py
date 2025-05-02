@@ -2,18 +2,21 @@ from typing import List
 
 from fastapi import FastAPI,Body,HTTPException,Depends
 
-from database.connection import get_db
-from database.orm import ToDo
-from database.repository import get_todos
+from schema.request import CreateTodoRequest
 
 '''
 Body->http 요청의 본문(body)에서 값을 빼올 때 사용
 HttpException->오류 상태를 응답할 때 사용
 '''
 
+from database.connection import get_db
+from database.orm import ToDo
+from database.repository import get_todos, get_todo_by_todo_id, create_todo, update_todo, delete_todo
+from schema.response import ToDoSchema
+from schema.response import ToDoListSchema
+
 from sqlalchemy.orm import Session
 
-from pydantic import BaseModel
 '''
 BaseModel을 상속해서 데이터 구조(모양)를 정의하면,
 fastapi가 자동으로 검사와 변환 수행
@@ -52,32 +55,45 @@ todo_data={
 def get_todos_handler(
         order:str | None=None,
         session:Session=Depends(get_db)
-):
+)->ToDoListSchema:
     todos:List[ToDo]=get_todos(session=session)
 
     if order and order=="DESC":#order 가 존재하고 그 값이 DESC 라면
-        return todos[::-1]
-    return todos
+        return ToDoListSchema(
+            todos=[ToDoSchema.from_orm(todo) for todo in todos[::-1]]
+        )
+
+    return ToDoListSchema(
+        todos=[
+            ToDoSchema.from_orm(todo)
+            for todo in todos
+        ]
+    )
 
 #단일 조회 todo , 1 2 3 을 키값으로 해서
 @app.get("/todos/{todo_id}",status_code=200)
-def get_todo_handler(todo_id:int):
-    todo=todo_data.get(todo_id)
+def get_todo_handler(
+        todo_id:int,
+        session:Session=Depends(get_db)
+):
+    todo:ToDo|None=get_todo_by_todo_id(session=session,todo_id=todo_id)
+
     if todo:
-        return todo
+        return ToDoSchema.from_orm(todo)
     # return todo_data.get(todo_id,{})#값이 없다면 {} 빈 리스트 반환
     raise HTTPException(status_code=404,detail="ToDo Not Found")
 
-class CreateTodoRequest(BaseModel):
-    id:int
-    contents:str
-    is_done:bool
 
 #todo 생성
 @app.post("/todos",status_code=201)
-def create_todo_handler(request:CreateTodoRequest):
-          todo_data[request.id] = request.dict()#request객체를 dictionary로 변환
+def create_todo_handler(
+        request: CreateTodoRequest,
+        session:Session=Depends(get_db)
+)->ToDoSchema:
+          todo:ToDo=ToDo.create(request=request) # 여기까지는 id=none
+          todo:ToDo=create_todo(session=session,todo=todo) # 여기부터 아이디 부여
 
+          return ToDoSchema.from_orm(todo)
 '''     
         여기에서는 3개의 값을 받는게 아니라 is_done만 받을거다
         요청 body에서 is_done이라는 값을 꼭 받아야 합니다 (...은 필수 의미)
@@ -92,18 +108,25 @@ def create_todo_handler(request:CreateTodoRequest):
 def update_todo_handler(
         todo_id:int,
         is_done:bool=Body(...,embed=True),
+        session:Session=Depends(get_db)
 ):
-    todo=todo_data.get(todo_id)
-    if todo:#만약에 todo 가 있다면 새로운 값으로 업데이트
-        todo["is_done"] = is_done
-        return todo
-    # return {}#새로운 todo 가 없다면 빈 리스트 반환
-    raise HTTPException(status_code=404,detail="ToDo Not Found")
+   todo:ToDo|None=get_todo_by_todo_id(session=session,todo_id=todo_id)
+   if todo:
+       todo.done() if is_done else todo.undone()
+       #update, 삼항 연산자->아직 디비에는 저장x
+
+       todo:ToDo=update_todo(session=session,todo=todo)
+
+       return ToDoSchema.from_orm(todo)#update
+   raise HTTPException(status_code=404,detail="ToDo Not Found")
 @app.delete("/todos/{todo_id}",status_code=204)
-def delete_todo_handler(todo_id:int):
-    todo=todo_data.pop(todo_id,None)#키값이 없는 경우에 대비해서 None을 추가
-    # return todo_data#남은 데이터 반환
-    #204코드는 return 안 해도 된다
-    if todo:
-        return
-    raise HTTPException(status_code=404,detail="ToDo Not Found")
+def delete_todo_handler(
+        todo_id:int,
+        session:Session=Depends(get_db)
+):
+    todo:ToDo|None=get_todo_by_todo_id(session=session,todo_id=todo_id)
+    if not todo:
+
+        raise HTTPException(status_code=404, detail="ToDo Not Found")
+    # delete
+    delete_todo(session=session, todo_id=todo_id)
